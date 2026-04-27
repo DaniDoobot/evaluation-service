@@ -81,3 +81,14 @@ def download_file_from_drive(file_id: str) -> bytes:
 
     file_buffer.seek(0)
     return file_buffer.read()
+
+
+def delete_file_from_drive(file_id: str) -> bool:
+    service = get_drive_service()
+
+    service.files().delete(
+        fileId=file_id,
+        supportsAllDrives=True,
+    ).execute()
+
+    return True
