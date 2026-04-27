@@ -13,7 +13,7 @@ from app.schemas import (
     ConversationTranscriptionCreate,
     ConversationTranscriptionOut,
 )
-from app.services.drive_service import upload_file_to_drive
+from app.services.drive_service import upload_file_to_drive, delete_file_from_drive
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
@@ -179,12 +179,24 @@ def delete_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversación no encontrada")
 
+    drive_deleted = False
+    drive_delete_error = None
+
+    if conversation.drive_file_id:
+        try:
+            delete_file_from_drive(conversation.drive_file_id)
+            drive_deleted = True
+        except Exception as exc:
+            drive_delete_error = str(exc)
+
     db.delete(conversation)
     db.commit()
 
     return {
         "deleted": True,
         "conversation_id": conversation_id,
+        "drive_file_deleted": drive_deleted,
+        "drive_delete_error": drive_delete_error,
     }
 
 
