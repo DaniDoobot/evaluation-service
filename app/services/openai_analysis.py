@@ -32,7 +32,7 @@ def build_evaluation_prompt(
 ────────────────────────────────
 CRITERIOS DINÁMICOS CONFIGURADOS PARA ESTA EVALUACIÓN
 ────────────────────────────────
-Evalúa la llamada teniendo en cuenta estos criterios configurados para este prompt:
+Evalúa la llamada teniendo en cuenta ÚNICAMENTE estos criterios configurados para este prompt:
 
 {criteria_text}
 
@@ -52,16 +52,18 @@ REGLAS PARA LOS CRITERIOS DINÁMICOS
 ────────────────────────────────
 Debes evaluar TODOS los criterios activos recibidos en la lista anterior.
 
-Los criterios deben devolverse dentro de:
-
-"criterios_especificos": {{
-  "<code_del_criterio>": ...
-}}
+No inventes criterios nuevos.
+No omitas criterios activos.
+No añadas criterios generales por defecto.
+No añadas sentiment, claridad, simpatia, gestion_objeciones, uso_nombre_cliente, uso_preguntas, saludo_inicio, despedida_con_refuerzo, evaluacion_global u otros criterios salvo que estén incluidos explícitamente en la lista de criterios activos.
 
 Usa SIEMPRE el code exacto de cada criterio como clave.
 
-No inventes criterios nuevos.
-No omitas criterios activos.
+Distribución de criterios:
+- Si category = "extraccion", devuelve el criterio dentro de "campos_extraccion".
+- Si category es cualquier otra cosa, devuelve el criterio dentro de "criterios_especificos".
+- "criterios_generales" debe quedar como {{}} salvo que explícitamente exista un criterio activo cuya category sea "general" y quieras agruparlo ahí. Para mantener consistencia visual, preferiblemente devuelve también los criterios category="general" dentro de "criterios_especificos".
+
 Si no hay información suficiente, usa null en el valor correspondiente, pero mantén la clave del criterio.
 
 ────────────────────────────────
@@ -172,54 +174,37 @@ Si el esquema está vacío, devuelve un JSON válido con esta estructura general
     "fortalezas": [string],
     "areas_mejora": [string]
   }},
-  "criterios_generales": {{
-    "sentiment": {{"score": number|null, "feedback": string|null}},
-    "empatia": {{"score": number|null, "feedback": string|null}},
-    "simpatia": {{"score": number|null, "feedback": string|null}},
-    "claridad": {{"score": number|null, "feedback": string|null}},
-    "gestion_objeciones": {{"score": number|null, "feedback": string|null}},
-    "uso_nombre_cliente": {{"score": number|null, "feedback": string|null}},
-    "uso_preguntas": {{"score": number|null, "feedback": string|null}},
-    "saludo_inicio": {{"score": number|null, "feedback": string|null}},
-    "despedida_con_refuerzo": {{"score": number|null, "feedback": string|null}},
-    "evaluacion_global": {{"score": number|null, "feedback": string|null}},
-    "hablando_agente": number|null,
-    "hablando_cliente": number|null
-  }},
+  "criterios_generales": {{}},
   "criterios_especificos": {{
-    "<code_criterio_1>": {{
+    "<code_criterio_activo_no_extraccion>": {{
       "score": number|null,
-      "feedback": string|null
-    }},
-    "<code_criterio_booleano>": {{
-      "value": "Si"|"No"|null,
-      "feedback": string|null
-    }},
-    "<code_criterio_texto>": {{
       "value": string|null,
       "feedback": string|null
     }}
   }},
   "campos_extraccion": {{
-    "motivo_principal": string|null,
-    "resultado": string|null,
-    "siguiente_paso": string|null,
-    "objeciones": string|null,
-    "objecion_1": string|null,
-    "objecion_2": string|null,
-    "objecion_3": string|null,
-    "nombre_cliente": string|null,
-    "telefono_cliente": string|null,
-    "email_cliente": string|null,
-    "fecha_cita": string|null,
-    "hora_cita": string|null,
-    "direccion": string|null
+    "<code_criterio_activo_extraccion>": {{
+      "value": string|null,
+      "feedback": string|null
+    }}
   }},
   "evaluacion_global_comentada": string|null,
   "recomendaciones": [string]
 }}
 
-Si el esquema NO está vacío, respeta estrictamente este esquema:
+Reglas obligatorias para esta estructura:
+- En "criterios_especificos" incluye únicamente criterios activos cuya category NO sea "extraccion".
+- En "campos_extraccion" incluye únicamente criterios activos cuya category sea "extraccion".
+- No añadas criterios no configurados.
+- No añadas criterios generales por defecto.
+- No añadas campos de extracción por defecto.
+- Si no hay criterios de un bloque, devuelve el bloque como {{}}.
+- Respeta el formato según scale_type:
+  - numeric_0_10 y numeric_0_100: usa score + feedback.
+  - boolean_si_no: usa value + feedback.
+  - text y category: usa value + feedback.
+
+Si el esquema NO está vacío, respeta estrictamente este esquema, pero sigue sin inventar criterios que no estén configurados:
 
 {output_schema_text}
 
@@ -235,10 +220,12 @@ Si no hay información suficiente para un campo, usa null.
 La respuesta debe poder parsearse directamente con json.loads().
 
 Recuerda especialmente:
+- Evalúa SOLO los criterios activos configurados.
 - Los criterios numeric_0_10 y numeric_0_100 devuelven score + feedback.
 - Los criterios boolean_si_no devuelven value + feedback.
-- Los criterios text devuelven value + feedback.
+- Los criterios text y category devuelven value + feedback.
 - No muestres boolean_si_no ni text como puntuaciones numéricas.
+- No añadas sentiment, claridad, simpatia, gestion_objeciones, uso_nombre_cliente, uso_preguntas, saludo_inicio, despedida_con_refuerzo ni evaluacion_global salvo que existan como criterios configurados.
 """.strip()
 
 
