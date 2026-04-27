@@ -69,6 +69,7 @@ class EvaluationPromptUpdate(BaseModel):
     base_instructions: Optional[str] = None
     output_schema: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
+    is_archived: Optional[bool] = None
 
 
 class EvaluationPromptOut(BaseModel):
