@@ -47,6 +47,39 @@ def list_prompts(db: Session = Depends(get_db)):
     )
 
 
+@router.get("/archived", response_model=list[EvaluationPromptOut])
+def list_archived_prompts(db: Session = Depends(get_db)):
+    return (
+        db.query(EvaluationPrompt)
+        .filter(EvaluationPrompt.is_archived == True)
+        .order_by(EvaluationPrompt.created_at.desc())
+        .all()
+    )
+
+
+@router.post("/{prompt_id}/unarchive", response_model=EvaluationPromptOut)
+def unarchive_prompt(
+    prompt_id: int,
+    db: Session = Depends(get_db),
+):
+    prompt = (
+        db.query(EvaluationPrompt)
+        .filter(EvaluationPrompt.id == prompt_id)
+        .first()
+    )
+
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt no encontrado")
+
+    prompt.is_archived = False
+    prompt.is_active = False
+
+    db.commit()
+    db.refresh(prompt)
+
+    return prompt
+
+
 @router.get("/{prompt_id}", response_model=EvaluationPromptDetailOut)
 def get_prompt(prompt_id: int, db: Session = Depends(get_db)):
     prompt = (
