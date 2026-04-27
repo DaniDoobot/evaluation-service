@@ -77,6 +77,7 @@ class EvaluationPromptOut(BaseModel):
     description: Optional[str] = None
     version: int
     is_active: bool
+    is_archived: bool = False
     base_instructions: str
     output_schema: dict[str, Any]
 
