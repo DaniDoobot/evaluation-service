@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import EvaluationPrompt, EvaluationCriterion
+from app.models import EvaluationPrompt, EvaluationCriterion, Analysis
 from app.schemas import (
     EvaluationPromptCreate,
     EvaluationPromptUpdate,
@@ -172,3 +172,32 @@ def duplicate_prompt(
     )
 
     return duplicated_prompt
+
+
+@router.delete("/{prompt_id}")
+def delete_prompt(
+    prompt_id: int,
+    db: Session = Depends(get_db),
+):
+    prompt = (
+        db.query(EvaluationPrompt)
+        .filter(EvaluationPrompt.id == prompt_id)
+        .first()
+    )
+
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt no encontrado")
+
+    # Para esta demo, eliminamos primero los análisis asociados
+    # para evitar errores de clave foránea.
+    db.query(Analysis).filter(Analysis.prompt_id == prompt_id).delete(
+        synchronize_session=False
+    )
+
+    db.delete(prompt)
+    db.commit()
+
+    return {
+        "deleted": True,
+        "prompt_id": prompt_id,
+    }
