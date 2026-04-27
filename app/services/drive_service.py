@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 load_dotenv()
 
@@ -62,3 +62,22 @@ def upload_file_to_drive(
     )
 
     return uploaded_file
+
+
+def download_file_from_drive(file_id: str) -> bytes:
+    service = get_drive_service()
+
+    request = service.files().get_media(
+        fileId=file_id,
+        supportsAllDrives=True,
+    )
+
+    file_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_buffer, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    file_buffer.seek(0)
+    return file_buffer.read()
