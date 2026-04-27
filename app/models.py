@@ -24,6 +24,7 @@ class EvaluationPrompt(Base):
     description = Column(Text)
     version = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, nullable=False, default=False)
+    is_archived = Column(Boolean, nullable=False, default=False)
     base_instructions = Column(Text, nullable=False)
     output_schema = Column(JSONB, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
