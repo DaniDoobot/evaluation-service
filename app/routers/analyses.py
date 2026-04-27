@@ -374,3 +374,25 @@ def fail_analysis(
     db.refresh(analysis)
 
     return analysis
+
+@router.delete("/{analysis_id}")
+def delete_analysis(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+):
+    analysis = (
+        db.query(Analysis)
+        .filter(Analysis.id == analysis_id)
+        .first()
+    )
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Análisis no encontrado")
+
+    db.delete(analysis)
+    db.commit()
+
+    return {
+        "deleted": True,
+        "analysis_id": analysis_id,
+    }
