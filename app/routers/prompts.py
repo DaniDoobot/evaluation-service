@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import EvaluationPrompt, EvaluationCriterion, Analysis
+from app.models import EvaluationPrompt, EvaluationCriterion
 from app.schemas import (
     EvaluationPromptCreate,
     EvaluationPromptUpdate,
@@ -17,7 +17,9 @@ router = APIRouter(prefix="/prompts", tags=["Prompts"])
 @router.post("", response_model=EvaluationPromptOut)
 def create_prompt(payload: EvaluationPromptCreate, db: Session = Depends(get_db)):
     if payload.is_active:
-        db.query(EvaluationPrompt).update({"is_active": False})
+        db.query(EvaluationPrompt).filter(
+            EvaluationPrompt.is_archived == False
+        ).update({"is_active": False})
 
     prompt = EvaluationPrompt(
         name=payload.name,
@@ -25,6 +27,7 @@ def create_prompt(payload: EvaluationPromptCreate, db: Session = Depends(get_db)
         base_instructions=payload.base_instructions,
         output_schema=payload.output_schema,
         is_active=payload.is_active,
+        is_archived=False,
     )
 
     db.add(prompt)
@@ -38,6 +41,7 @@ def create_prompt(payload: EvaluationPromptCreate, db: Session = Depends(get_db)
 def list_prompts(db: Session = Depends(get_db)):
     return (
         db.query(EvaluationPrompt)
+        .filter(EvaluationPrompt.is_archived == False)
         .order_by(EvaluationPrompt.created_at.desc())
         .all()
     )
@@ -77,8 +81,19 @@ def update_prompt(
 
     data = payload.model_dump(exclude_unset=True)
 
+    if prompt.is_archived and data.get("is_active") is True:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede activar un prompt archivado",
+        )
+
     if data.get("is_active") is True:
-        db.query(EvaluationPrompt).update({"is_active": False})
+        db.query(EvaluationPrompt).filter(
+            EvaluationPrompt.is_archived == False
+        ).update({"is_active": False})
+
+    if data.get("is_archived") is True:
+        data["is_active"] = False
 
     for field, value in data.items():
         setattr(prompt, field, value)
@@ -100,7 +115,16 @@ def activate_prompt(prompt_id: int, db: Session = Depends(get_db)):
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt no encontrado")
 
-    db.query(EvaluationPrompt).update({"is_active": False})
+    if prompt.is_archived:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede establecer como predeterminado un prompt archivado",
+        )
+
+    db.query(EvaluationPrompt).filter(
+        EvaluationPrompt.is_archived == False
+    ).update({"is_active": False})
+
     prompt.is_active = True
 
     db.commit()
@@ -126,7 +150,9 @@ def duplicate_prompt(
         raise HTTPException(status_code=404, detail="Prompt no encontrado")
 
     if payload.activate:
-        db.query(EvaluationPrompt).update({"is_active": False})
+        db.query(EvaluationPrompt).filter(
+            EvaluationPrompt.is_archived == False
+        ).update({"is_active": False})
 
     duplicated_prompt = EvaluationPrompt(
         name=payload.name or f"{source_prompt.name} - copia",
@@ -135,6 +161,7 @@ def duplicate_prompt(
         else source_prompt.description,
         version=1,
         is_active=payload.activate,
+        is_archived=False,
         base_instructions=source_prompt.base_instructions,
         output_schema=source_prompt.output_schema,
     )
@@ -175,7 +202,7 @@ def duplicate_prompt(
 
 
 @router.delete("/{prompt_id}")
-def delete_prompt(
+def archive_prompt(
     prompt_id: int,
     db: Session = Depends(get_db),
 ):
@@ -188,16 +215,13 @@ def delete_prompt(
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt no encontrado")
 
-    # Para esta demo, eliminamos primero los análisis asociados
-    # para evitar errores de clave foránea.
-    db.query(Analysis).filter(Analysis.prompt_id == prompt_id).delete(
-        synchronize_session=False
-    )
+    prompt.is_archived = True
+    prompt.is_active = False
 
-    db.delete(prompt)
     db.commit()
 
     return {
-        "deleted": True,
+        "archived": True,
         "prompt_id": prompt_id,
+        "message": "Prompt archivado correctamente. Los análisis asociados se conservan.",
     }
