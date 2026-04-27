@@ -10,6 +10,8 @@ from app.schemas import (
     AnalysisComplete,
     AnalysisFail,
     AnalysisOut,
+    AnalysisListItemOut,
+    AnalysisDetailOut,
 )
 from app.services.drive_service import download_file_from_drive
 from app.services.openai_analysis import (
@@ -18,6 +20,74 @@ from app.services.openai_analysis import (
 )
 
 router = APIRouter(prefix="/analyses", tags=["Analyses"])
+
+
+def _extract_global_score(result_json):
+    if not isinstance(result_json, dict):
+        return None
+
+    criterios = result_json.get("criterios_generales")
+
+    if isinstance(criterios, dict):
+        evaluacion_global = criterios.get("evaluacion_global")
+
+        if isinstance(evaluacion_global, dict):
+            score = evaluacion_global.get("score")
+            return float(score) if score is not None else None
+
+        if isinstance(evaluacion_global, (int, float)):
+            return float(evaluacion_global)
+
+    direct_score = result_json.get("evaluacion_global")
+    if isinstance(direct_score, (int, float)):
+        return float(direct_score)
+
+    return None
+
+
+def _extract_tipo_conversacion(result_json):
+    if not isinstance(result_json, dict):
+        return None
+
+    metadata = result_json.get("metadata")
+    if isinstance(metadata, dict):
+        tipo = metadata.get("tipo_conversacion")
+        if tipo:
+            return str(tipo)
+
+    tipo_llamada = result_json.get("tipo_llamada")
+    if tipo_llamada:
+        return str(tipo_llamada)
+
+    campos = result_json.get("campos_extraccion")
+    if isinstance(campos, dict):
+        resultado = campos.get("resultado")
+        if resultado:
+            return str(resultado)
+
+    return None
+
+
+def _analysis_to_list_item(analysis: Analysis) -> AnalysisListItemOut:
+    return AnalysisListItemOut(
+        id=analysis.id,
+        status=analysis.status,
+        conversation_id=analysis.conversation_id,
+        conversation_filename=analysis.conversation.original_filename
+        if analysis.conversation
+        else None,
+        conversation_drive_url=analysis.conversation.drive_file_url
+        if analysis.conversation
+        else None,
+        prompt_id=analysis.prompt_id,
+        prompt_name=analysis.prompt.name if analysis.prompt else None,
+        prompt_version=analysis.prompt_version,
+        evaluation_global_score=_extract_global_score(analysis.result_json),
+        tipo_conversacion=_extract_tipo_conversacion(analysis.result_json),
+        created_at=analysis.created_at,
+        started_at=analysis.started_at,
+        finished_at=analysis.finished_at,
+    )
 
 
 @router.post("", response_model=AnalysisOut)
@@ -68,6 +138,23 @@ def list_analyses(
     )
 
 
+@router.get("/detail", response_model=list[AnalysisListItemOut])
+def list_analyses_detail(
+    db: Session = Depends(get_db),
+):
+    analyses = (
+        db.query(Analysis)
+        .options(
+            selectinload(Analysis.conversation),
+            selectinload(Analysis.prompt),
+        )
+        .order_by(Analysis.created_at.desc())
+        .all()
+    )
+
+    return [_analysis_to_list_item(analysis) for analysis in analyses]
+
+
 @router.get("/{analysis_id}", response_model=AnalysisOut)
 def get_analysis(
     analysis_id: int,
@@ -83,6 +170,37 @@ def get_analysis(
         raise HTTPException(status_code=404, detail="Análisis no encontrado")
 
     return analysis
+
+
+@router.get("/{analysis_id}/detail", response_model=AnalysisDetailOut)
+def get_analysis_detail(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+):
+    analysis = (
+        db.query(Analysis)
+        .options(
+            selectinload(Analysis.conversation),
+            selectinload(Analysis.prompt).selectinload(EvaluationPrompt.criteria),
+        )
+        .filter(Analysis.id == analysis_id)
+        .first()
+    )
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Análisis no encontrado")
+
+    if analysis.prompt and analysis.prompt.criteria:
+        analysis.prompt.criteria = sorted(
+            analysis.prompt.criteria,
+            key=lambda c: c.sort_order,
+        )
+
+    return AnalysisDetailOut(
+        analysis=analysis,
+        conversation=analysis.conversation,
+        prompt=analysis.prompt,
+    )
 
 
 @router.post("/{analysis_id}/start", response_model=AnalysisOut)

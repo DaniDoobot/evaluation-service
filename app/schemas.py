@@ -88,6 +88,12 @@ class EvaluationPromptDetailOut(EvaluationPromptOut):
     criteria: list[EvaluationCriterionOut] = []
 
 
+class PromptDuplicateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    activate: bool = False
+
+
 # -----------------------------------------------------------------------------
 # Conversations
 # -----------------------------------------------------------------------------
@@ -183,3 +189,25 @@ class AnalysisOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AnalysisListItemOut(BaseModel):
+    id: int
+    status: str
+    conversation_id: int
+    conversation_filename: Optional[str] = None
+    conversation_drive_url: Optional[str] = None
+    prompt_id: int
+    prompt_name: Optional[str] = None
+    prompt_version: int
+    evaluation_global_score: Optional[float] = None
+    tipo_conversacion: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
+class AnalysisDetailOut(BaseModel):
+    analysis: AnalysisOut
+    conversation: Optional[ConversationOut] = None
+    prompt: Optional[EvaluationPromptDetailOut] = None
