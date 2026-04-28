@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Analysis, Conversation, EvaluationPrompt
+from app.models import Analysis, Conversation, EvaluationPrompt, AppUser
 from app.schemas import (
     AnalysisCreate,
     AnalysisComplete,
@@ -18,6 +18,7 @@ from app.services.openai_analysis import (
     analyze_audio_with_openai_chat_completions,
     build_evaluation_prompt,
 )
+from app.dependencies.auth import require_admin_or_user
 
 router = APIRouter(prefix="/analyses", tags=["Analyses"])
 
@@ -26,7 +27,6 @@ def _extract_global_score(result_json):
     if not isinstance(result_json, dict):
         return None
 
-    # 1. Formato anterior: criterios_generales.evaluacion_global.score
     criterios_generales = result_json.get("criterios_generales")
 
     if isinstance(criterios_generales, dict):
@@ -39,14 +39,11 @@ def _extract_global_score(result_json):
         if isinstance(evaluacion_global, (int, float)):
             return float(evaluacion_global)
 
-    # 2. Formato plano anterior: evaluacion_global
     direct_score = result_json.get("evaluacion_global")
     if isinstance(direct_score, (int, float)):
         return float(direct_score)
 
-    # 3. Nuevo formato: media de criterios_especificos con score numérico
     criterios_especificos = result_json.get("criterios_especificos")
-
     scores = []
 
     if isinstance(criterios_especificos, dict):
@@ -56,7 +53,6 @@ def _extract_global_score(result_json):
                 if isinstance(score, (int, float)):
                     scores.append(float(score))
 
-    # 4. Por si en algún análisis futuro usamos criterios_evaluacion
     criterios_evaluacion = result_json.get("criterios_evaluacion")
 
     if isinstance(criterios_evaluacion, dict):
@@ -89,7 +85,11 @@ def _extract_tipo_conversacion(result_json):
     campos = result_json.get("campos_extraccion")
     if isinstance(campos, dict):
         resultado = campos.get("resultado")
-        if resultado:
+        if isinstance(resultado, dict):
+            value = resultado.get("value")
+            if value:
+                return str(value)
+        elif resultado:
             return str(resultado)
 
     return None
@@ -121,6 +121,7 @@ def _analysis_to_list_item(analysis: Analysis) -> AnalysisListItemOut:
 def create_analysis(
     payload: AnalysisCreate,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     conversation = (
         db.query(Conversation)
@@ -139,6 +140,12 @@ def create_analysis(
 
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt no encontrado")
+
+    if prompt.is_archived:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede crear un análisis con un prompt archivado",
+        )
 
     analysis = Analysis(
         conversation_id=conversation.id,
@@ -234,6 +241,7 @@ def get_analysis_detail(
 def start_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     analysis = (
         db.query(Analysis)
@@ -257,6 +265,7 @@ def start_analysis(
 def run_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     analysis = (
         db.query(Analysis)
@@ -291,6 +300,12 @@ def run_analysis(
 
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt no encontrado")
+
+    if prompt.is_archived:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede ejecutar un análisis con un prompt archivado",
+        )
 
     analysis.status = "processing"
     analysis.started_at = datetime.utcnow()
@@ -357,6 +372,7 @@ def complete_analysis(
     analysis_id: int,
     payload: AnalysisComplete,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     analysis = (
         db.query(Analysis)
@@ -383,6 +399,7 @@ def fail_analysis(
     analysis_id: int,
     payload: AnalysisFail,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     analysis = (
         db.query(Analysis)
@@ -402,10 +419,12 @@ def fail_analysis(
 
     return analysis
 
+
 @router.delete("/{analysis_id}")
 def delete_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     analysis = (
         db.query(Analysis)
