@@ -147,6 +147,8 @@ class Analysis(Base):
         "EvaluationPrompt",
         back_populates="analyses",
     )
+
+
 class AppUser(Base):
     __tablename__ = "app_users"
 
@@ -159,7 +161,3 @@ class AppUser(Base):
     is_archived = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), nullable=False)
-    prompt = relationship(
-        "EvaluationPrompt",
-        back_populates="analyses",
-    )
