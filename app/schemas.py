@@ -213,3 +213,53 @@ class AnalysisDetailOut(BaseModel):
     analysis: AnalysisOut
     conversation: Optional[ConversationOut] = None
     prompt: Optional[EvaluationPromptDetailOut] = None
+
+
+# -----------------------------------------------------------------------------
+# Users & Auth
+# -----------------------------------------------------------------------------
+
+
+class UserCreate(BaseModel):
+    email: str
+    full_name: Optional[str] = None
+    password: str
+    role: str = "user"
+    is_active: bool = True
+
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_archived: Optional[bool] = None
+
+
+class UserPasswordUpdate(BaseModel):
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
