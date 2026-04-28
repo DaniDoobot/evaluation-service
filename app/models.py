@@ -142,6 +142,11 @@ class Analysis(Base):
         "Conversation",
         back_populates="analyses",
     )
+
+    prompt = relationship(
+        "EvaluationPrompt",
+        back_populates="analyses",
+    )
 class AppUser(Base):
     __tablename__ = "app_users"
 
