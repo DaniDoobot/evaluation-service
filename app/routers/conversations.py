@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Conversation, ConversationTranscription
+from app.models import Conversation, ConversationTranscription, AppUser
 from app.schemas import (
     ConversationCreate,
     ConversationUpdate,
@@ -14,6 +14,7 @@ from app.schemas import (
     ConversationTranscriptionOut,
 )
 from app.services.drive_service import upload_file_to_drive, delete_file_from_drive
+from app.dependencies.auth import require_admin_or_user
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
@@ -31,6 +32,7 @@ ALLOWED_MIME_TYPES = {
 async def upload_conversation_audio(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     drive_folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
@@ -94,6 +96,7 @@ async def upload_conversation_audio(
 def create_conversation(
     payload: ConversationCreate,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     conversation = Conversation(
         original_filename=payload.original_filename,
@@ -144,6 +147,7 @@ def update_conversation(
     conversation_id: int,
     payload: ConversationUpdate,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     conversation = (
         db.query(Conversation)
@@ -169,6 +173,7 @@ def update_conversation(
 def delete_conversation(
     conversation_id: int,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     conversation = (
         db.query(Conversation)
@@ -205,6 +210,7 @@ def create_transcription(
     conversation_id: int,
     payload: ConversationTranscriptionCreate,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     conversation = (
         db.query(Conversation)
