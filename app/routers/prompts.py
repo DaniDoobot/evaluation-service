@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import EvaluationPrompt, EvaluationCriterion
+from app.models import EvaluationPrompt, EvaluationCriterion, AppUser
 from app.schemas import (
     EvaluationPromptCreate,
     EvaluationPromptUpdate,
@@ -10,12 +10,17 @@ from app.schemas import (
     EvaluationPromptDetailOut,
     PromptDuplicateRequest,
 )
+from app.dependencies.auth import require_admin_or_user
 
 router = APIRouter(prefix="/prompts", tags=["Prompts"])
 
 
 @router.post("", response_model=EvaluationPromptOut)
-def create_prompt(payload: EvaluationPromptCreate, db: Session = Depends(get_db)):
+def create_prompt(
+    payload: EvaluationPromptCreate,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
+):
     if payload.is_active:
         db.query(EvaluationPrompt).filter(
             EvaluationPrompt.is_archived == False
@@ -61,6 +66,7 @@ def list_archived_prompts(db: Session = Depends(get_db)):
 def unarchive_prompt(
     prompt_id: int,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     prompt = (
         db.query(EvaluationPrompt)
@@ -102,6 +108,7 @@ def update_prompt(
     prompt_id: int,
     payload: EvaluationPromptUpdate,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     prompt = (
         db.query(EvaluationPrompt)
@@ -138,7 +145,11 @@ def update_prompt(
 
 
 @router.post("/{prompt_id}/activate", response_model=EvaluationPromptOut)
-def activate_prompt(prompt_id: int, db: Session = Depends(get_db)):
+def activate_prompt(
+    prompt_id: int,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
+):
     prompt = (
         db.query(EvaluationPrompt)
         .filter(EvaluationPrompt.id == prompt_id)
@@ -171,6 +182,7 @@ def duplicate_prompt(
     prompt_id: int,
     payload: PromptDuplicateRequest,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     source_prompt = (
         db.query(EvaluationPrompt)
@@ -238,6 +250,7 @@ def duplicate_prompt(
 def archive_prompt(
     prompt_id: int,
     db: Session = Depends(get_db),
+    current_user: AppUser = Depends(require_admin_or_user),
 ):
     prompt = (
         db.query(EvaluationPrompt)
