@@ -26,10 +26,11 @@ def _extract_global_score(result_json):
     if not isinstance(result_json, dict):
         return None
 
-    criterios = result_json.get("criterios_generales")
+    # 1. Formato anterior: criterios_generales.evaluacion_global.score
+    criterios_generales = result_json.get("criterios_generales")
 
-    if isinstance(criterios, dict):
-        evaluacion_global = criterios.get("evaluacion_global")
+    if isinstance(criterios_generales, dict):
+        evaluacion_global = criterios_generales.get("evaluacion_global")
 
         if isinstance(evaluacion_global, dict):
             score = evaluacion_global.get("score")
@@ -38,9 +39,35 @@ def _extract_global_score(result_json):
         if isinstance(evaluacion_global, (int, float)):
             return float(evaluacion_global)
 
+    # 2. Formato plano anterior: evaluacion_global
     direct_score = result_json.get("evaluacion_global")
     if isinstance(direct_score, (int, float)):
         return float(direct_score)
+
+    # 3. Nuevo formato: media de criterios_especificos con score numérico
+    criterios_especificos = result_json.get("criterios_especificos")
+
+    scores = []
+
+    if isinstance(criterios_especificos, dict):
+        for value in criterios_especificos.values():
+            if isinstance(value, dict):
+                score = value.get("score")
+                if isinstance(score, (int, float)):
+                    scores.append(float(score))
+
+    # 4. Por si en algún análisis futuro usamos criterios_evaluacion
+    criterios_evaluacion = result_json.get("criterios_evaluacion")
+
+    if isinstance(criterios_evaluacion, dict):
+        for value in criterios_evaluacion.values():
+            if isinstance(value, dict):
+                score = value.get("score")
+                if isinstance(score, (int, float)):
+                    scores.append(float(score))
+
+    if scores:
+        return round(sum(scores) / len(scores), 2)
 
     return None
 
